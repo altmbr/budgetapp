@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 
-const TransactionsList = ({ transactions, updateCategory }) => {
+const TransactionsList = ({ transactions, updateCategory, onTransactionsDeleted }) => {
   const [editingId, setEditingId] = useState(null);
   const [newCategory, setNewCategory] = useState('');
   const [filter, setFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   // Get unique categories for filtering
   const allCategories = [...new Set(
@@ -16,7 +19,7 @@ const TransactionsList = ({ transactions, updateCategory }) => {
   // Filter transactions based on search and category filter
   const filteredTransactions = transactions.filter(transaction => {
     const matchesSearch = filter === '' || 
-      transaction.name.toLowerCase().includes(filter.toLowerCase());
+      (transaction.description && transaction.description.toLowerCase().includes(filter.toLowerCase()));
     
     const matchesCategory = categoryFilter === '' || 
       (transaction.custom_category === categoryFilter || 
@@ -42,6 +45,28 @@ const TransactionsList = ({ transactions, updateCategory }) => {
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString();
+  };
+
+  const handleDeleteAllTransactions = async () => {
+    if (window.confirm('Are you sure you want to delete ALL transactions? This action cannot be undone.')) {
+      setIsDeleting(true);
+      setDeleteError(null);
+      
+      try {
+        await axios.delete('/api/transactions/delete-all');
+        setIsDeleting(false);
+        if (onTransactionsDeleted) {
+          onTransactionsDeleted();
+        } else {
+          // Fallback if no callback provided
+          window.location.reload();
+        }
+      } catch (error) {
+        console.error('Error deleting transactions:', error);
+        setDeleteError('Failed to delete transactions. Please try again.');
+        setIsDeleting(false);
+      }
+    }
   };
 
   return (
@@ -74,6 +99,23 @@ const TransactionsList = ({ transactions, updateCategory }) => {
         </div>
       </div>
 
+      {deleteError && (
+        <div className="alert alert-danger" role="alert">
+          {deleteError}
+        </div>
+      )}
+
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h4>Transactions ({filteredTransactions.length})</h4>
+        <button 
+          className="btn btn-danger" 
+          onClick={handleDeleteAllTransactions}
+          disabled={isDeleting || transactions.length === 0}
+        >
+          {isDeleting ? 'Deleting...' : 'Delete All Transactions'}
+        </button>
+      </div>
+
       {filteredTransactions.length === 0 ? (
         <p>No transactions found.</p>
       ) : (
@@ -92,7 +134,7 @@ const TransactionsList = ({ transactions, updateCategory }) => {
               {filteredTransactions.map(transaction => (
                 <tr key={transaction.id}>
                   <td>{formatDate(transaction.date)}</td>
-                  <td>{transaction.name}</td>
+                  <td>{transaction.description}</td>
                   <td className={transaction.amount > 0 ? 'transaction-amount-negative' : 'transaction-amount-positive'}>
                     {formatAmount(transaction.amount)}
                   </td>

@@ -477,6 +477,17 @@ def update_transaction_category(transaction_id):
         print(f"Error updating category: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+# Route to delete all transactions
+@app.route('/api/transactions/delete-all', methods=['DELETE'])
+def delete_all_transactions():
+    try:
+        clear_transactions()
+        return jsonify({"message": "All transactions successfully deleted"}), 200
+    except Exception as e:
+        print(f"Error deleting transactions: {str(e)}")
+        traceback.print_exc()
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
 # Serve frontend static files in production
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')

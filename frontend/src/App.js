@@ -47,6 +47,12 @@ function App() {
     fetchTransactions();
   };
 
+  // Called when all transactions are deleted
+  const handleTransactionsDeleted = () => {
+    setTransactions([]);
+    setError(null);
+  };
+
   const updateTransactionCategory = async (transactionId, category) => {
     try {
       await axios.put(`/api/transactions/${transactionId}/category`, {
@@ -85,7 +91,8 @@ function App() {
             <h2>Your Transactions</h2>
             <TransactionsList 
               transactions={transactions} 
-              onUpdateCategory={updateTransactionCategory}
+              updateCategory={updateTransactionCategory}
+              onTransactionsDeleted={handleTransactionsDeleted}
             />
           </section>
         )}
