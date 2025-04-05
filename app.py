@@ -11,6 +11,9 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 import traceback
+import re
+from werkzeug.utils import secure_filename
+from tempfile import gettempdir
 
 app = Flask(__name__, static_folder='frontend/build', static_url_path='')
 # Enable CORS with maximum permissiveness
@@ -79,55 +82,69 @@ init_db()
 migrate_db_schema()  # Call the migration function after init_db
 
 # Route to handle CSV upload
-@app.route('/api/upload_csv', methods=['POST', 'OPTIONS'])
+@app.route('/api/upload-csv', methods=['POST'])
 def upload_csv():
-    # Handle preflight requests
-    if request.method == 'OPTIONS':
-        return '', 200
-    
-    print("===== CSV UPLOAD REQUEST =====")
-    print(f"Method: {request.method}")
-    print(f"Content-Type: {request.content_type}")
-    print(f"Files: {list(request.files.keys()) if request.files else 'No files'}")
-    print(f"Form: {list(request.form.keys()) if request.form else 'No form data'}")
-    print(f"Data: {request.get_data()[:100]}")  # Show first 100 bytes of request data
-        
     try:
-        # First, check if we should use the example file
-        if request.form and 'use_example' in request.form:
-            print("Using example file from form data")
-            return process_example_file()
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part in the request'}), 400
+            
+        csv_file = request.files['file']
+        if not csv_file:
+            return jsonify({'error': 'No file uploaded'}), 400
+
+        # Check file extension
+        if not csv_file.filename.lower().endswith('.csv'):
+            return jsonify({'error': 'File must be a CSV'}), 400
+
+        # Save CSV temporarily to detect format and encoding
+        temp_dir = gettempdir()
+        temp_filepath = os.path.join(temp_dir, secure_filename(csv_file.filename))
+        csv_file.save(temp_filepath)
         
-        # Check for JSON content type before trying to parse JSON
-        if request.is_json:
-            data = request.get_json()
-            if data and data.get('use_example'):
-                print("Using example file from JSON data")
-                return process_example_file()
+        # Show file contents for debugging
+        try:
+            with open(temp_filepath, 'r') as f:
+                file_contents = f.read(500)  # Read first 500 chars
+                print(f"File contents (first 500 chars):\n{file_contents}")
+        except Exception as read_err:
+            print(f"Error reading temp file: {str(read_err)}")
         
-        # Then, check for uploaded file
-        if request.files and 'file' in request.files:
-            file = request.files['file']
-            print(f"Found file in request: {file.filename}, content_type={file.content_type}")
-            if file and file.filename:
-                return process_uploaded_file(file)
-            else:
-                print("File object exists but filename is empty")
+        # Clear existing transactions before adding new ones
+        clear_transactions()
+        
+        # Determine CSV format based on headers
+        csv_format = detect_csv_format(temp_filepath)
+        
+        # Process based on detected format
+        if csv_format == 'budget':
+            print("Detected budget format with Outflow/Inflow columns")
+            result = process_budget_format(temp_filepath)
         else:
-            print("No 'file' found in request.files. Keys found:", list(request.files.keys()) if request.files else "None")
+            # Check if this is a sample file with debit/credit format
+            if 'sample_transactions.csv' in csv_file.filename.lower() or ('debit' in file_contents.lower() and 'credit' in file_contents.lower()):
+                print("Detected sample transactions format with debit/credit columns")
+                rows_processed = process_sample_transactions_csv(temp_filepath)
+                result = {'message': f'Successfully processed {rows_processed} rows'}
+            else:
+                # Use the original account activity format processor
+                print("Using default CSV format processor")
+                rows_processed = process_account_activity_csv(temp_filepath)
+                result = {'message': f'Successfully processed {rows_processed} rows'}
         
-        # If we made it here, something is wrong with the request
-        if request.data and len(request.data) > 0 and b'example' in request.data:
-            print("Found 'example' in raw request data, using example file")
-            return process_example_file()
-        
-        print("Invalid request format - no valid file or example request found")
-        return jsonify({'error': 'Invalid request format: No file or example data found'}), 400
-        
+        # Clean up temp file
+        if os.path.exists(temp_filepath):
+            os.remove(temp_filepath)
+            
+        return jsonify(result), 200
     except Exception as e:
-        print(f"Server error in upload_csv: {str(e)}")
+        print(f"Error processing uploaded file: {str(e)}")
         traceback.print_exc()
-        return jsonify({'error': f'Server error: {str(e)}'}), 500
+        
+        # Clean up
+        if 'temp_filepath' in locals() and os.path.exists(temp_filepath):
+            os.remove(temp_filepath)
+            
+        return jsonify({'error': f'Error processing file: {str(e)}'}), 500
 
 def clear_transactions():
     """Clear all transactions from the database"""
@@ -159,54 +176,181 @@ def process_example_file():
         traceback.print_exc()
         return jsonify({'error': f'Error processing file: {str(e)}'}), 500
 
-def process_uploaded_file(file):
-    """Process an uploaded file"""
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-    
-    print(f"Processing uploaded file: {file.filename}")
-    
-    # Save the file temporarily
-    temp_file_path = os.path.join(os.getcwd(), 'temp_upload.csv')
+def detect_csv_format(filepath):
+    """
+    Detect the format of the CSV file based on headers
+    Returns 'budget' if it matches the budget format, 'default' otherwise
+    """
     try:
-        file.save(temp_file_path)
-        print(f"File saved to {temp_file_path}")
-        
-        # Show file contents for debugging
-        try:
-            with open(temp_file_path, 'r') as f:
-                file_contents = f.read(500)  # Read first 500 chars
-                print(f"File contents (first 500 chars):\n{file_contents}")
-        except Exception as read_err:
-            print(f"Error reading temp file: {str(read_err)}")
-        
-        # Clear existing transactions before adding new ones
-        clear_transactions()
-        
-        # Check if this is a sample file with debit/credit format
-        if 'sample_transactions.csv' in file.filename.lower() or 'debit' in file_contents.lower() and 'credit' in file_contents.lower():
-            print("Detected sample transactions format with debit/credit columns")
-            rows_processed = process_sample_transactions_csv(temp_file_path)
-        else:
-            # Use the original account activity format processor
-            rows_processed = process_account_activity_csv(temp_file_path)
+        with open(filepath, 'r', newline='', encoding='utf-8-sig') as file:
+            reader = csv.reader(file)
+            headers = next(reader, None)
             
-        print(f"Successfully processed {rows_processed} rows from uploaded file")
-        
-        # Clean up
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
-            
-        return jsonify({'message': f'Successfully processed {rows_processed} rows'}), 200
+            if headers and 'Outflow' in headers and 'Inflow' in headers:
+                return 'budget'
+            return 'default'
     except Exception as e:
-        print(f"Error processing uploaded file: {str(e)}")
-        traceback.print_exc()
-        
-        # Clean up
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
+        print(f"Error detecting CSV format: {str(e)}")
+        return 'default'
+
+def process_budget_format(filepath):
+    """
+    Process CSV file in budget format (with Outflow/Inflow columns)
+    """
+    conn = sqlite3.connect('finance.db')
+    cursor = conn.cursor()
+    
+    processed_rows = 0
+    errors = []
+    
+    try:
+        with open(filepath, 'r', newline='', encoding='utf-8-sig') as file:
+            # Use DictReader to access columns by name
+            reader = csv.DictReader(file)
             
-        return jsonify({'error': f'Error processing file: {str(e)}'}), 500
+            for row in reader:
+                try:
+                    # Get values from columns, using empty string if missing
+                    date = row.get('Date', '')
+                    description = row.get('Payee', '')
+                    
+                    # Get account, memo
+                    account = row.get('Account', '')
+                    memo = row.get('Memo', '')
+                    
+                    # Get category
+                    category = row.get('Category', '')
+                    
+                    # Parse amount from Outflow/Inflow
+                    outflow = row.get('Outflow', '0').strip()
+                    inflow = row.get('Inflow', '0').strip()
+                    
+                    # Convert to float, handling empty strings and currency symbols
+                    outflow_amount = float(re.sub(r'[^0-9.-]', '', outflow or '0') or 0)
+                    inflow_amount = float(re.sub(r'[^0-9.-]', '', inflow or '0') or 0)
+                    
+                    # Apply the conversion logic - outflow positive, inflow negative
+                    amount = outflow_amount - inflow_amount
+                    
+                    # Generate a unique ID using date and description
+                    transaction_id = str(uuid.uuid4())
+                    
+                    # Insert into database
+                    cursor.execute(
+                        'INSERT INTO transactions (id, date, description, amount, category, currency, account, memo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        (transaction_id, date, description, amount, category, 'USD', account, memo)
+                    )
+                    processed_rows += 1
+                    
+                except Exception as e:
+                    errors.append(f"Error on row: {str(e)}")
+                    continue
+                
+            conn.commit()
+            
+    except Exception as e:
+        conn.close()
+        return {'error': str(e)}
+    
+    conn.close()
+    
+    if errors:
+        return {
+            'message': f'Processed {processed_rows} rows with {len(errors)} errors',
+            'errors': errors
+        }
+    
+    return {'message': f'Successfully processed {processed_rows} rows'}
+
+def process_default_format(filepath):
+    """Process CSV file in the default format"""
+    conn = sqlite3.connect('finance.db')
+    cursor = conn.cursor()
+    
+    processed_rows = 0
+    errors = []
+    
+    try:
+        with open(filepath, 'r', newline='', encoding='utf-8-sig') as file:
+            reader = csv.reader(file)
+            rows = list(reader)
+            
+            # Skip header row if it exists based on content
+            start_idx = 0
+            if len(rows) > 0 and len(rows[0]) > 0 and isinstance(rows[0][0], str) and (
+                'date' in rows[0][0].lower() or 
+                'time' in rows[0][0].lower() or
+                (len(rows[0]) > 1 and isinstance(rows[0][1], str) and 'description' in rows[0][1].lower())):
+                print("Skipping header row")
+                start_idx = 1
+            
+            # Process the rows
+            for row in rows[start_idx:]:
+                try:
+                    print(f"Processing row: {row}")
+                    if len(row) < 3:
+                        print(f"Skipping row (not enough columns): {row}")
+                        continue
+                    
+                    # Create a transaction ID
+                    transaction_id = str(uuid.uuid4())
+                    
+                    # Get date and description
+                    date = row[0].strip()
+                    description = row[1].strip()
+                    
+                    # First try column 2 (debit/outgoing)
+                    amount = None
+                    if len(row) > 2 and row[2].strip():
+                        try:
+                            amount_str = row[2].strip().replace(',', '')
+                            amount = -1 * float(amount_str)  # Negative for debits
+                            print(f"Found debit amount: {amount}")
+                        except ValueError as e:
+                            print(f"Invalid debit amount '{row[2]}': {e}")
+                    
+                    # If no amount in column 2, try column 3 (credit/incoming)
+                    if amount is None and len(row) > 3 and row[3].strip():
+                        try:
+                            amount_str = row[3].strip().replace(',', '')
+                            amount = float(amount_str)  # Positive for credits
+                            print(f"Found credit amount: {amount}")
+                        except ValueError as e:
+                            print(f"Invalid credit amount '{row[3]}': {e}")
+                    
+                    # If neither debit nor credit, skip
+                    if amount is None:
+                        print(f"Skipping row, no valid amount: {row}")
+                        continue
+                    
+                    print(f"Processing transaction: {date}, {description}, ${amount}")
+                    
+                    # Insert into database
+                    cursor.execute(
+                        'INSERT INTO transactions (id, date, description, amount, category, currency, account, memo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        (transaction_id, date, description, amount, '', 'USD', '', '')
+                    )
+                    processed_rows += 1
+                    
+                except Exception as e:
+                    errors.append(f"Error on row: {str(e)}")
+                    continue
+                
+            conn.commit()
+            
+    except Exception as e:
+        conn.close()
+        return {'error': str(e)}
+    
+    conn.close()
+    
+    if errors:
+        return {
+            'message': f'Processed {processed_rows} rows with {len(errors)} errors',
+            'errors': errors
+        }
+    
+    return {'message': f'Successfully processed {processed_rows} rows'}
 
 def process_sample_transactions_csv(file_path):
     """Process a sample_transactions.csv format with debit/credit columns"""
@@ -492,6 +636,31 @@ def get_transactions():
     # Return empty array with 200 status code when no transactions found
     # This allows the frontend to handle this more gracefully
     return jsonify(transactions)
+
+# Route to process the example file
+@app.route('/api/process-example', methods=['POST'])
+def process_example():
+    try:
+        print("Processing example file")
+        
+        # Clear existing transactions before adding new ones
+        clear_transactions()
+        
+        # Path to the example file
+        example_file_path = os.path.join(os.getcwd(), 'sample_transactions.csv')
+        
+        # Make sure the file exists
+        if not os.path.exists(example_file_path):
+            return jsonify({'error': 'Example file not found'}), 404
+            
+        # Process the example file
+        rows_processed = process_sample_transactions_csv(example_file_path)
+        
+        return jsonify({'message': f'Successfully processed {rows_processed} rows from example file'}), 200
+    except Exception as e:
+        print(f"Error processing example file: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'error': f'Error processing example file: {str(e)}'}), 500
 
 # Route to update transaction category
 @app.route('/api/transactions/<transaction_id>/category', methods=['PUT'])
