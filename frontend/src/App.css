@@ -1,0 +1,167 @@
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background-color: #343a40;
+  color: white;
+  padding: 1.5rem 0;
+  text-align: center;
+}
+
+.app-footer {
+  margin-top: auto;
+  padding: 1rem 0;
+  background-color: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+}
+
+.upload-section {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 2rem;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.upload-section h3 {
+  margin-bottom: 12px;
+}
+
+.upload-section input[type="file"] {
+  margin-bottom: 12px;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.transactions-section {
+  margin-bottom: 2rem;
+}
+
+.category-badge {
+  background-color: #e9ecef;
+  color: #495057;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  margin-right: 0.5rem;
+}
+
+.custom-category {
+  background-color: #17a2b8;
+  color: white;
+}
+
+.transaction-amount-positive {
+  color: #28a745;
+}
+
+.transaction-amount-negative {
+  color: #dc3545;
+}
+
+.upload-form {
+  background-color: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 6px;
+  margin-top: 1rem;
+}
+
+.csv-upload-container {
+  text-align: center;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.csv-upload-container ul {
+  display: inline-block;
+  text-align: left;
+}
+
+.error-message {
+  padding: 12px;
+  background-color: #f8d7da;
+  color: #721c24;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.success-message {
+  padding: 12px;
+  background-color: #d4edda;
+  color: #155724;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.help-text {
+  color: #666;
+  font-size: 0.85rem;
+  margin-bottom: 15px;
+}
+
+.upload-button, .example-button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s;
+  width: 100%;
+  max-width: 400px;
+}
+
+.upload-button:hover, .example-button:hover {
+  background-color: #0069d9;
+}
+
+.upload-button:disabled, .example-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.example-button {
+  background-color: #28a745;
+}
+
+.example-button:hover {
+  background-color: #218838;
+}
+
+.or-divider {
+  margin: 15px 0;
+  position: relative;
+  text-align: center;
+  font-weight: bold;
+  color: #666;
+}
+
+.or-divider::before, .or-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 40px;
+  height: 1px;
+  background-color: #ddd;
+}
+
+.or-divider::before {
+  left: calc(50% - 50px);
+}
+
+.or-divider::after {
+  right: calc(50% - 50px);
+}
