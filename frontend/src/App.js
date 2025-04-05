@@ -27,6 +27,16 @@ function App() {
     };
 
     fetchTransactions();
+    
+    // Add updateTransactions function to window object for use in child components
+    window.updateTransactions = (updatedTransactions) => {
+      setTransactions(updatedTransactions);
+    };
+    
+    // Cleanup when component unmounts
+    return () => {
+      delete window.updateTransactions;
+    };
   }, []);
 
   // Function to fetch transactions

@@ -34,13 +34,49 @@ def init_db():
         description TEXT,
         amount REAL,
         category TEXT,
-        custom_category TEXT
+        custom_category TEXT,
+        currency TEXT DEFAULT 'USD',
+        account TEXT,
+        memo TEXT
     )
     ''')
     conn.commit()
     conn.close()
 
+def migrate_db_schema():
+    """Check if the database schema needs to be migrated and add any missing columns"""
+    conn = sqlite3.connect('finance.db')
+    cursor = conn.cursor()
+    
+    # Check what columns exist
+    cursor.execute("PRAGMA table_info(transactions)")
+    columns = [column[1] for column in cursor.fetchall()]
+    
+    # Add currency column if it doesn't exist
+    if 'currency' not in columns:
+        print("Migrating database: Adding currency column to transactions table")
+        cursor.execute('ALTER TABLE transactions ADD COLUMN currency TEXT DEFAULT "USD"')
+        conn.commit()
+        print("Migration complete: Added currency column")
+    
+    # Add account column if it doesn't exist
+    if 'account' not in columns:
+        print("Migrating database: Adding account column to transactions table")
+        cursor.execute('ALTER TABLE transactions ADD COLUMN account TEXT')
+        conn.commit()
+        print("Migration complete: Added account column")
+    
+    # Add memo column if it doesn't exist
+    if 'memo' not in columns:
+        print("Migrating database: Adding memo column to transactions table")
+        cursor.execute('ALTER TABLE transactions ADD COLUMN memo TEXT')
+        conn.commit()
+        print("Migration complete: Added memo column")
+    
+    conn.close()
+
 init_db()
+migrate_db_schema()  # Call the migration function after init_db
 
 # Route to handle CSV upload
 @app.route('/api/upload_csv', methods=['POST', 'OPTIONS'])
@@ -220,8 +256,8 @@ def process_sample_transactions_csv(file_path):
                 
                 # Insert into database
                 cursor.execute(
-                    'INSERT INTO transactions (id, date, description, amount, category) VALUES (?, ?, ?, ?, ?)',
-                    (transaction_id, date, description, amount, '')
+                    'INSERT INTO transactions (id, date, description, amount, category, currency, account, memo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    (transaction_id, date, description, amount, '', 'USD', '', '')
                 )
                 processed_rows += 1
                 
@@ -310,8 +346,8 @@ def process_account_activity_csv(file_path):
                     
                     # Insert into database
                     cursor.execute(
-                        'INSERT INTO transactions (id, date, description, amount, category) VALUES (?, ?, ?, ?, ?)',
-                        (transaction_id, date, description, amount, '')
+                        'INSERT INTO transactions (id, date, description, amount, category, currency, account, memo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        (transaction_id, date, description, amount, '', 'USD', '', '')
                     )
                     processed_rows += 1
                     
@@ -418,8 +454,8 @@ def process_account_activity_csv(file_path):
                     
                     # Insert into database
                     cursor.execute(
-                        'INSERT INTO transactions (id, date, description, amount, category) VALUES (?, ?, ?, ?, ?)',
-                        (transaction_id, date, description, amount, '')
+                        'INSERT INTO transactions (id, date, description, amount, category, currency, account, memo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        (transaction_id, date, description, amount, '', 'USD', '', '')
                     )
                     processed_rows += 1
                     
@@ -453,10 +489,8 @@ def get_transactions():
     
     conn.close()
     
-    # Return 404 if no transactions found - this is expected for new users
-    if len(transactions) == 0:
-        return jsonify({"message": "No transactions found"}), 404
-        
+    # Return empty array with 200 status code when no transactions found
+    # This allows the frontend to handle this more gracefully
     return jsonify(transactions)
 
 # Route to update transaction category
@@ -475,6 +509,93 @@ def update_transaction_category(transaction_id):
         return jsonify({'success': True})
     except Exception as e:
         print(f"Error updating category: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# Route to update transaction currency
+@app.route('/api/transaction/<transaction_id>/currency', methods=['PUT'])
+def update_transaction_currency(transaction_id):
+    try:
+        data = request.get_json()
+        currency = data.get('currency', 'USD')
+        
+        if not currency:
+            return jsonify({'error': 'Currency cannot be empty'}), 400
+            
+        conn = sqlite3.connect('finance.db')
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'UPDATE transactions SET currency = ? WHERE id = ?',
+            (currency, transaction_id)
+        )
+        
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({'error': 'Transaction not found'}), 404
+            
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'message': 'Currency updated successfully'})
+        
+    except Exception as e:
+        print(f"Error updating currency: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# Route to update transaction account
+@app.route('/api/transaction/<transaction_id>/account', methods=['PUT'])
+def update_transaction_account(transaction_id):
+    try:
+        data = request.get_json()
+        account = data.get('account', '')
+            
+        conn = sqlite3.connect('finance.db')
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'UPDATE transactions SET account = ? WHERE id = ?',
+            (account, transaction_id)
+        )
+        
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({'error': 'Transaction not found'}), 404
+            
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'message': 'Account updated successfully'})
+        
+    except Exception as e:
+        print(f"Error updating account: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# Route to update transaction memo
+@app.route('/api/transaction/<transaction_id>/memo', methods=['PUT'])
+def update_transaction_memo(transaction_id):
+    try:
+        data = request.get_json()
+        memo = data.get('memo', '')
+            
+        conn = sqlite3.connect('finance.db')
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'UPDATE transactions SET memo = ? WHERE id = ?',
+            (memo, transaction_id)
+        )
+        
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({'error': 'Transaction not found'}), 404
+            
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'message': 'Memo updated successfully'})
+        
+    except Exception as e:
+        print(f"Error updating memo: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # Route to delete all transactions
