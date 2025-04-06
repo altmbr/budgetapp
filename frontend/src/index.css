@@ -1,8 +1,8 @@
 :root {
   /* Primary Colors */
-  --primary-color: #48a999;  /* Soft teal */
+  --primary-color: #2ecc71;  /* Bright green for header */
   --primary-light: #a7e0d4;  /* Lighter teal for accents */
-  --primary-dark: #2d7b6b;   /* Darker teal for buttons/headers */
+  --primary-dark: #27ae60;   /* Darker green for buttons/headers */
   
   /* Gray Shades */
   --gray-100: #f8f9fa;
@@ -16,10 +16,10 @@
   --gray-900: #212529;
   
   /* Status Colors */
-  --success: #48a975;  /* Teal-green for positive values */
-  --danger: #e76f51;   /* Soft coral for negative values */
-  --info: #4d96bb;     /* Soft blue for information */
-  --warning: #f8c05f;  /* Soft amber for warnings */
+  --success: #27ae60;  /* Green for positive values */
+  --danger: #e74c3c;   /* Red for negative values */
+  --info: #3498db;     /* Blue for information */
+  --warning: #f39c12;  /* Amber for warnings */
   
   /* Typography */
   --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -80,7 +80,7 @@ input, select, textarea {
 input:focus, select:focus, textarea:focus {
   border-color: var(--primary-color);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(72, 169, 153, 0.1);
+  box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.1);
 }
 
 table {

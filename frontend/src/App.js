@@ -8,6 +8,7 @@ function App() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   // Fetch transactions from the backend
   useEffect(() => {
@@ -55,6 +56,7 @@ function App() {
   // Called when CSV upload is successful
   const handleUploadSuccess = () => {
     fetchTransactions();
+    setShowUploadModal(false);
   };
 
   // Called when all transactions are deleted
@@ -85,39 +87,43 @@ function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>Personal Finance</h1>
+        <div className="header-content">
+          <h1>Personal Finance</h1>
+          <button 
+            className="import-button" 
+            onClick={() => setShowUploadModal(true)}
+          >
+            Import
+          </button>
+        </div>
       </header>
       
       <main className="app-main">
-        <section className="upload-section">
-          <h2>Upload Your Transaction Data</h2>
-          <p>Upload a CSV file with your transaction data to get started</p>
-          
-          <CSVUpload onSuccess={handleUploadSuccess} />
+        {showUploadModal && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h2>Import Transactions</h2>
+                <button 
+                  className="close-button" 
+                  onClick={() => setShowUploadModal(false)}
+                >
+                  &times;
+                </button>
+              </div>
+              <CSVUpload onSuccess={handleUploadSuccess} />
+            </div>
+          </div>
+        )}
+        
+        <section className="transactions-section">
+          <TransactionsList 
+            transactions={transactions} 
+            updateCategory={updateTransactionCategory}
+            onTransactionsDeleted={handleTransactionsDeleted}
+          />
         </section>
-        
-        {transactions.length > 0 && (
-          <section className="transactions-section">
-            <h2>Your Transactions</h2>
-            <TransactionsList 
-              transactions={transactions} 
-              updateCategory={updateTransactionCategory}
-              onTransactionsDeleted={handleTransactionsDeleted}
-            />
-          </section>
-        )}
-        
-        {loading && <div className="loading">Loading transactions...</div>}
-        
-        {/* Only show error if it exists AND we already have transactions */}
-        {error && transactions.length > 0 && (
-          <div className="alert alert-danger" data-component-name="App">{error}</div>
-        )}
       </main>
-      
-      <footer>
-        <p> 2025 Personal Finance App</p>
-      </footer>
     </div>
   );
 }
